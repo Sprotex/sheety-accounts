@@ -1,4 +1,4 @@
-##How to make this work
+## How to make this work
 
 Step 1
  - create a Google Form, set storing into Google Spreadsheet
