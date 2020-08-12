@@ -11,7 +11,7 @@ def run():
     creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
     gc = gspread.authorize(creds)
 
-    spreadsheet = gc.open_by_key('1_rd_vMOMrzqFcDkLSmIxgZ3b5imq_7dLO7AtIXtj5cI')
+    spreadsheet = gc.open_by_key(config['gforms_spreadsheet_id'])
 
     all_data = spreadsheet.sheet1.get_all_records()
 
@@ -42,15 +42,15 @@ def handle_entry(gc, entry):
     except gspread.exceptions.SpreadsheetNotFound:
         print("Unable to access spreadsheet {}, creating".format(email))
         spreadsheet = gc.create(email)
-        # Uncomment whenever a major change is done
-        should_write = True
 
-    if should_write:
         # Sharing (we also need to share with admin, since the sheet is created by a service account)
         spreadsheet.share(config['admin_gmail'], perm_type='user', role='reader')
         spreadsheet.share(email, perm_type='user', role='writer')
 
-        # Writing
+        # Uncomment whenever a major change is done
+        should_write = True
+
+    if should_write:
         sheet = spreadsheet.sheet1
         sheet.update('A1', 'Name')
         sheet.update('A2', entry['name'])
