@@ -33,6 +33,10 @@ def parse_entry_from_form(form_row):
 def handle_entry(gc, entry):
     email = entry['email']
 
+    if not is_valid(entry):
+        print("Entry {} not valid, ignoring".format(email))
+        return
+
     should_write = False
 
     try:
@@ -48,12 +52,16 @@ def handle_entry(gc, entry):
         spreadsheet.share(email, perm_type='user', role='writer')
 
         # Uncomment whenever a major change is done
-        should_write = True
+        # should_write = True
 
     if should_write:
         sheet = spreadsheet.sheet1
         sheet.update('A1', 'Name')
         sheet.update('A2', entry['name'])
+
+
+def is_valid(entry):
+    return str(entry['email']).endswith("@gmail.com")
 
 
 if __name__ == '__main__':
