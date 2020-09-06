@@ -6,7 +6,7 @@ import gspread_formatting as gf
 from oauth2client.service_account import ServiceAccountCredentials
 from read_config import read_config
 
-def run():
+def run(entry_dict, spreadsheet):
 	row_infos = [
 		{'start': 'B1', 'data': ['č. prodejce:', 'příjmení, jméno:', '', 'tel:', 'e-mail:']},
 		{'start': 'B4', 'data': [
@@ -74,16 +74,15 @@ def run():
 	]
 	merged_cells = ['E3:F3', 'C40:J40'] 
 	writing_spreadsheet_key = '1vN72A2jyyP7u2Yo9SJdI11NTChalIMfnMvoRrDVKyCM'
-	email = 'test@gmail.com'
-	phone_number = '123456789'
-	full_name = 'Linus Tuxin'
-	vendor_id = 'A001'
+	email = entry_dict['email']
+	phone_number = entry_dict['phone']
+	full_name = entry_dict['name'] + ' ' + entry_dict['surname']
+	vendor_id = entry_dict['vendor id']
 	vendor_info = [vendor_id, full_name, '', phone_number, email]
 	config = read_config()
 	scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 	creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
 	gc = gspread.authorize(creds)
-	spreadsheet = gc.open_by_key(writing_spreadsheet_key)
 	worksheet = spreadsheet.get_worksheet(0)
 	batch_text_fill(worksheet, row_infos, col_infos, vendor_info)
 	batch_format(worksheet, bold_ranges, background_color_infos, column_widths, row_heights, font_infos, text_color_infos, underline_ranges)
@@ -121,6 +120,14 @@ def set_colors(batch, worksheet, color_infos):
 		cell_format = gf.cellFormat(backgroundColor = color)
 		batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
 
+def set_text_alignment(batch, worksheet, cell_range):
+	cell_format = gf.cellFormat(horizontalAlignment = 'CENTER', verticalAlignment = 'MIDDLE')
+	batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
+
+def set_wrap_strategy(batch, worksheet, cell_range):
+	cell_format = gf.cellFormat(wrapStrategy = 'WRAP')
+	batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
+
 def set_custom_column_widths(batch, worksheet, column_widths):
 	updates = []
 	col = 1
@@ -153,8 +160,7 @@ def set_spreadsheet_validation(worksheet, row_validations, col_validations, non_
 	for col in col_validations:
 		one_of_condition_column_from_a1(worksheet, col['data'], col['start'], col['count'])
 	for non_editable_range in non_editable_ranges:
-		#worksheet.add_protected_range(non_editable_range)
-		pass
+		worksheet.add_protected_range(non_editable_range)
 
 def generate_item_ids(vendor_id, count):
 	item_ids = []
@@ -193,6 +199,7 @@ def batch_text_fill(worksheet, row_infos, col_infos, vendor_info):
 	worksheet.batch_update(batch)
 
 def batch_format(worksheet, bold_ranges, background_color_infos, column_widths, row_heights, font_infos, text_color_infos, underline_ranges):
+	whole_sheet_cell_range = 'A1:J40'
 	with gf.batch_updater(worksheet.spreadsheet) as formatting_batch:
 		set_bold(formatting_batch, worksheet, bold_ranges)
 		set_colors(formatting_batch, worksheet, background_color_infos)
@@ -201,6 +208,5 @@ def batch_format(worksheet, bold_ranges, background_color_infos, column_widths, 
 		set_fonts(formatting_batch, worksheet, font_infos)
 		set_text_color(formatting_batch, worksheet, text_color_infos)
 		set_underline(formatting_batch, worksheet, underline_ranges)
-	
-if __name__ == '__main__':
-	run()
+		set_text_alignment(formatting_batch, worksheet, whole_sheet_cell_range)
+		set_wrap_strategy(formatting_batch, worksheet, whole_sheet_cell_range)
