@@ -6,7 +6,7 @@ import gspread_formatting as gf
 from oauth2client.service_account import ServiceAccountCredentials
 from read_config import read_config
 
-def run(entry_dict, spreadsheet):
+def run(entry_dict, spreadsheet, is_being_created):
 	row_infos = [
 		{'start': 'B1', 'data': ['č. prodejce:', 'příjmení, jméno:', '', 'tel:', 'e-mail:']},
 		{'start': 'B4', 'data': [
@@ -15,7 +15,9 @@ def run(entry_dict, spreadsheet):
 			'Bližší specifikace - tři slova\n(stručný popis, např.motiv na zboží, název knihy, atd.......)\n-max.30 znaků-', 
 			'Velikost', 'Cena\n(zaokrouhleno na 10 Kč)\nnapř.10, 20, 50'
 		]},
-		{'start': 'B40', 'data': ['!!!!', 'Registrační poplatek Strančické burzy je 20 Kč na jeden prodejní seznam.']}
+		{'start': 'B40', 'data': ['!!!!', 'Registrační poplatek Strančické burzy je 20 Kč na jeden prodejní seznam.']},
+		{'start': 'B3', 'data':  ['Podzimní a zimní burza 2020']},
+		{'start': 'E3', 'data':  ['Prodejní seznam']}
 	]
 	col_infos = [
 		{'start': 'C35', 'data': [
@@ -40,7 +42,7 @@ def run(entry_dict, spreadsheet):
 		{'start': 'C5', 'data': selection_types, 'count': 30},
 		{'start': 'D5', 'data': colors, 'count': 30}
 	]
-	non_editable_ranges = ['A:B', 'I:Z34', 'C35:Z']
+	non_editable_ranges = ['A:B', 'I:Z34', 'C35:Z', 'C1:H3']
 	bold_ranges = ['B2:H34', 'B37:H40']
 	underline_ranges = ['F2']
 	background_color_infos = [
@@ -72,7 +74,7 @@ def run(entry_dict, spreadsheet):
 		{'range': 'B4:H34', 'size': 13},
 		{'range': 'E2:F2', 'size': 14}
 	]
-	merged_cells = ['E3:F3', 'C40:J40'] 
+	merged_cells = ['B3:D3', 'E3:F3', 'C40:J40', 'C37:G37'] 
 	writing_spreadsheet_key = '1vN72A2jyyP7u2Yo9SJdI11NTChalIMfnMvoRrDVKyCM'
 	email = entry_dict['email']
 	phone_number = entry_dict['phone']
@@ -86,7 +88,7 @@ def run(entry_dict, spreadsheet):
 	worksheet = spreadsheet.get_worksheet(0)
 	batch_text_fill(worksheet, row_infos, col_infos, vendor_info)
 	batch_format(worksheet, bold_ranges, background_color_infos, column_widths, row_heights, font_infos, text_color_infos, underline_ranges)
-	set_spreadsheet_validation(worksheet, [], col_validations, non_editable_ranges)
+	set_spreadsheet_validation(worksheet, [], col_validations, non_editable_ranges, is_being_created)
 	set_merged_cells(worksheet, merged_cells)
 	
 def set_merged_cells(worksheet, cell_ranges):
@@ -120,13 +122,26 @@ def set_colors(batch, worksheet, color_infos):
 		cell_format = gf.cellFormat(backgroundColor = color)
 		batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
 
-def set_text_alignment(batch, worksheet, cell_range):
-	cell_format = gf.cellFormat(horizontalAlignment = 'CENTER', verticalAlignment = 'MIDDLE')
-	batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
+def set_text_alignment(batch, worksheet, middle_cell_ranges, left_cell_ranges, right_cell_ranges):
+	middle_cell_format = gf.cellFormat(horizontalAlignment = 'CENTER', verticalAlignment = 'MIDDLE')
+	left_cell_format = gf.cellFormat(horizontalAlignment = 'LEFT', verticalAlignment = 'MIDDLE')
+	right_cell_format = gf.cellFormat(horizontalAlignment = 'RIGHT', verticalAlignment = 'MIDDLE')
+	for cell_range in middle_cell_ranges:
+		batch.format_cell_ranges(worksheet, [(cell_range, middle_cell_format)])
+	for cell_range in left_cell_ranges:
+		batch.format_cell_ranges(worksheet, [(cell_range, left_cell_format)])
+	for cell_range in right_cell_ranges:
+		batch.format_cell_ranges(worksheet, [(cell_range, right_cell_format)])
 
 def set_wrap_strategy(batch, worksheet, cell_range):
 	cell_format = gf.cellFormat(wrapStrategy = 'WRAP')
 	batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
+
+def set_borders(batch, worksheet, cell_ranges):
+	for cell_range in cell_ranges:
+		border = {'style' : 'SOLID' }
+		borders = { 'top' : border, 'bottom' : border, 'left' : border, 'right' : border}
+		worksheet.format(cell_range, {'borders': borders})
 
 def set_custom_column_widths(batch, worksheet, column_widths):
 	updates = []
@@ -154,13 +169,16 @@ def set_fonts(batch, worksheet, font_infos):
 		cell_format = gf.cellFormat(textFormat = text_format)
 		batch.format_cell_ranges(worksheet, [(cell_range, cell_format)])
 
-def set_spreadsheet_validation(worksheet, row_validations, col_validations, non_editable_ranges):
+def set_spreadsheet_validation(worksheet, row_validations, col_validations, non_editable_ranges, is_being_created):
+	ends_with_0_range = 'H5:H34'
 	for row in row_validations:
 		one_of_condition_row_from_a1(worksheet, row['data'], row['start'], row['count'])
 	for col in col_validations:
 		one_of_condition_column_from_a1(worksheet, col['data'], col['start'], col['count'])
-	for non_editable_range in non_editable_ranges:
-		worksheet.add_protected_range(non_editable_range)
+	if is_being_created:
+		for non_editable_range in non_editable_ranges:
+			worksheet.add_protected_range(non_editable_range)
+	ends_with_str_condition(worksheet, '0', ends_with_0_range, 'Ujistěte se, že je v buňce číslo zaokrouhlené na desítky.')
 
 def generate_item_ids(vendor_id, count):
 	item_ids = []
@@ -171,7 +189,8 @@ def generate_item_ids(vendor_id, count):
 def one_of_condition_row_from_a1(worksheet, categories, start_cell, count):
 	validation_rule = gf.DataValidationRule(
 		gf.BooleanCondition('ONE_OF_LIST', categories),
-		showCustomUi=True
+		showCustomUi=True,
+		strict=True
 	)
 	start_row, start_col = gspread.utils.a1_to_rowcol(start_cell)
 	end_cell = gspread.utils.rowcol_to_a1(start_row, start_col + count - 1)
@@ -181,11 +200,22 @@ def one_of_condition_row_from_a1(worksheet, categories, start_cell, count):
 def one_of_condition_column_from_a1(worksheet, categories, start_cell, count):
 	validation_rule = gf.DataValidationRule(
 		gf.BooleanCondition('ONE_OF_LIST', categories),
-		showCustomUi=True
+		showCustomUi=True,
+		strict=True
 	)
 	start_row, start_col = gspread.utils.a1_to_rowcol(start_cell)
 	end_cell = gspread.utils.rowcol_to_a1(start_row + count - 1, start_col)
 	cell_range = start_cell + ":" + end_cell
+	gf.set_data_validation_for_cell_range(worksheet, cell_range, validation_rule)
+
+def ends_with_str_condition(worksheet, ending, cell_range, input_message):
+	first_cell = worksheet.range(cell_range)[0].address
+	validation_rule = gf.DataValidationRule(
+		gf.BooleanCondition('CUSTOM_FORMULA', ['=IF(ISBLANK(' + first_cell + '),TRUE, IF(ISNUMBER(' + first_cell + '),REGEXMATCH(TEXT(' + first_cell + ',"0"),".*' + ending + '$"), FALSE))']),
+		showCustomUi=True,
+		strict=True,
+		inputMessage=input_message
+	)
 	gf.set_data_validation_for_cell_range(worksheet, cell_range, validation_rule)
 
 def batch_text_fill(worksheet, row_infos, col_infos, vendor_info):
@@ -200,6 +230,9 @@ def batch_text_fill(worksheet, row_infos, col_infos, vendor_info):
 
 def batch_format(worksheet, bold_ranges, background_color_infos, column_widths, row_heights, font_infos, text_color_infos, underline_ranges):
 	whole_sheet_cell_range = 'A1:J40'
+	border_ranges = ['B1:F3', 'B4:H37', 'C40:J40']
+	left_align_ranges = ['C35:G37']
+	right_align_ranges = ['H5:H37']
 	with gf.batch_updater(worksheet.spreadsheet) as formatting_batch:
 		set_bold(formatting_batch, worksheet, bold_ranges)
 		set_colors(formatting_batch, worksheet, background_color_infos)
@@ -208,5 +241,6 @@ def batch_format(worksheet, bold_ranges, background_color_infos, column_widths, 
 		set_fonts(formatting_batch, worksheet, font_infos)
 		set_text_color(formatting_batch, worksheet, text_color_infos)
 		set_underline(formatting_batch, worksheet, underline_ranges)
-		set_text_alignment(formatting_batch, worksheet, whole_sheet_cell_range)
+		set_text_alignment(formatting_batch, worksheet, [whole_sheet_cell_range], left_align_ranges, right_align_ranges)
 		set_wrap_strategy(formatting_batch, worksheet, whole_sheet_cell_range)
+		set_borders(formatting_batch, worksheet, border_ranges)

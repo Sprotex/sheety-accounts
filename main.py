@@ -9,13 +9,13 @@ def run():
 	scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 	creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
 	gc = gspread.authorize(creds)
-
 	spreadsheet = gc.open_by_key(config['gforms_spreadsheet_id'])
-
 	all_data = spreadsheet.sheet1.get_all_records()
+	global_spreadsheet_name = 'Global Export'
 	
 	# debugging
-	# entry = parse_entry_from_form(all_data[1])
+	# data_line = all_data[0]
+	# entry = parse_entry_from_form(data_line)
 	# handle_entry(gc, entry)
 	# return
 	# end debugging
@@ -43,34 +43,25 @@ def parse_entry_from_form(form_row):
 
 def handle_entry(gc, entry):
 	email = entry['email']
-
-	if not is_valid(entry):
-		print("Entry {} not valid, ignoring".format(email))
-		return
-
 	should_write = False
-
+	is_being_created = False
 	try:
 		spreadsheet = gc.open(email)
 		print("Found {}".format(email))
-		
 		# Uncomment whenever a major change is done
 		# should_write = True
 	except gspread.exceptions.SpreadsheetNotFound:
 		print("Unable to access spreadsheet {}, creating".format(email))
 		spreadsheet = gc.create(email)
-
-		# Sharing (we also need to share with admin, since the sheet is created by a service account)
-		spreadsheet.share(config['admin_gmail'], perm_type='user', role='reader')
-		spreadsheet.share(email, perm_type='user', role='writer')
+		is_being_created = True
 		should_write = True
 
 	if should_write:
-		prefiller.run(entry, spreadsheet)
-
-
-def is_valid(entry):
-	return str(entry['email']).endswith("@gmail.com")
+		# Sharing (we also need to share with admin, since the sheet is created by a service account)
+		spreadsheet.share(config['admin_gmail'], perm_type='user', role='reader')
+		spreadsheet.share(email, perm_type='anyone', role='writer')
+		spreadsheet.share(None, perm_type='anyone', role='writer')
+		prefiller.run(entry, spreadsheet, is_being_created)
 
 if __name__ == '__main__':
 	run()
